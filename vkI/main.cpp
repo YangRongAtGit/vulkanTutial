@@ -5,6 +5,7 @@
 #include <stdexcept>
 #include <functional>
 #include <memory>
+#include <vector>
 
 #include "Defines.h"
 #include "Resource.h"
@@ -38,15 +39,40 @@ private:
 
     unsigned int glfwExtensionCount = 0;
     const char** glfwExtensions;
+    std::vector<VkExtensionProperties> extensions;
 
-    glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+    // check extensions
+    uint32_t extensionCount = 0;
+    vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
+    if (extensionCount)
+    {
+      extensions.resize(extensionCount);
+      vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensions.data());
 
-    createInfo.enabledExtensionCount = glfwExtensionCount;
-    createInfo.ppEnabledExtensionNames = glfwExtensions;
+      std::cout << "available extensions:" << std::endl;
+      for (const auto& extension : extensions)
+      {
+        std::cout << "\t" << extension.extensionName << std::endl;
+      }
+      // manually initialize externsion
+      const char *ext[] = {"VK_KHR_surface", "VK_KHR_win32_surface", "VK_EXT_debug_report"};
+      createInfo.enabledExtensionCount = extensionCount;
+      createInfo.ppEnabledExtensionNames = ext;
+    }
+    else
+    {
+      glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+      createInfo.enabledExtensionCount = glfwExtensionCount;
+      createInfo.ppEnabledExtensionNames = glfwExtensions;
+      cout << "No available extension is detected." << endl;
+    }
+
+    //createInfo.enabledExtensionCount = glfwExtensionCount;
+    //createInfo.ppEnabledExtensionNames = glfwExtensions;
+
     createInfo.enabledLayerCount = 0;
 
-    VkInstance *instance = nullptr;
-    if (vkCreateInstance(&createInfo, nullptr, instance) != VK_SUCCESS)
+    if (vkCreateInstance(&createInfo, nullptr, &_instance) != VK_SUCCESS)
     {
       throw std::runtime_error("failed to create instance!");
     }
@@ -74,7 +100,7 @@ private:
   }
 
 private:
-  unique_ptr<VkInstance> _instance;
+  VkInstance _instance;
   GLFWwindow *_window;
   //Resource<VkInstance> _instance{vkDestroyInstance};
 };
