@@ -11,6 +11,14 @@
 #include "Resource.h"
 
 using namespace std;
+namespace
+{
+  const std::vector<const char*> local_validation_layer_names =
+  {
+    "VK_LAYER_LUNARG_standard_validation"
+  };
+}
+
 class TriangleApplication
 {
 public:
@@ -26,6 +34,13 @@ private:
   {
     // Optional setup
     VkApplicationInfo appInfo = {};
+    VkInstanceCreateInfo createInfo = {};
+
+    if (!checkValidationLayerSupport(createInfo))
+    {
+      throw runtime_error("validation layers requested, but not available.");
+    }
+
     appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
     appInfo.pApplicationName = "Hello Triangle";
     appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
@@ -33,7 +48,7 @@ private:
     appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
     appInfo.apiVersion = VK_API_VERSION_1_0;
 
-    VkInstanceCreateInfo createInfo = {};
+    
     createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     createInfo.pApplicationInfo = &appInfo;
 
@@ -42,35 +57,38 @@ private:
     std::vector<VkExtensionProperties> extensions;
 
     // check extensions
-    uint32_t extensionCount = 0;
-    vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
-    if (extensionCount)
-    {
-      extensions.resize(extensionCount);
-      vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensions.data());
+    uint32_t count = 0;
+    bool use_glfw_ext = true;
 
-      std::cout << "available extensions:" << std::endl;
-      for (const auto& extension : extensions)
+    vkEnumerateInstanceExtensionProperties(nullptr, &count, nullptr);
+    if (count > 0)
+    {
+      VkExtensionProperties *extensions = new VkExtensionProperties[count];
+      vkEnumerateInstanceExtensionProperties(nullptr, &count, extensions);
       {
-        std::cout << "\t" << extension.extensionName << std::endl;
+        std::cout << "available extensions:" << std::endl;
+        for (int i = 0; i< count; ++i)
+        {
+          _extension_names.push_back((extensions + i)->extensionName);
+          std::cout << "\t" << (extensions + i)->extensionName << std::endl;
+        }
+        createInfo.enabledExtensionCount = count;
+        createInfo.ppEnabledExtensionNames = &_extension_names[0];
+        use_glfw_ext = false;
       }
-      // manually initialize externsion
-      const char *ext[] = {"VK_KHR_surface", "VK_KHR_win32_surface", "VK_EXT_debug_report"};
-      createInfo.enabledExtensionCount = extensionCount;
-      createInfo.ppEnabledExtensionNames = ext;
     }
-    else
+    if (use_glfw_ext)
     {
       glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
       createInfo.enabledExtensionCount = glfwExtensionCount;
       createInfo.ppEnabledExtensionNames = glfwExtensions;
-      cout << "No available extension is detected." << endl;
+      cout << "No available extension is detected. The glfw extension is used." << endl;
     }
 
     //createInfo.enabledExtensionCount = glfwExtensionCount;
     //createInfo.ppEnabledExtensionNames = glfwExtensions;
 
-    createInfo.enabledLayerCount = 0;
+   // createInfo.enabledLayerCount = 0;
 
     if (vkCreateInstance(&createInfo, nullptr, &_instance) != VK_SUCCESS)
     {
@@ -91,6 +109,40 @@ private:
     createInstance();
   }
 
+  bool checkValidationLayerSupport(VkInstanceCreateInfo &info)
+  {
+    uint32_t count = 0;
+    info.enabledLayerCount = 0;
+    vkEnumerateInstanceLayerProperties(&count, nullptr);
+    vector<VkLayerProperties> properties(count);
+    vkEnumerateInstanceLayerProperties(&count, properties.data());
+#if defined PRINT_VERBOS
+    cout << "Available properties: " << count << endl;
+#endif
+    uint8_t found_layer = 0;
+    for (const char *layer : local_validation_layer_names)
+    {
+      for (VkLayerProperties p : properties)
+      {
+#if defined PRINT_VERBOS
+        cout << p.layerName << ": " << p.description << endl;
+#endif // PRINT_VERBOS
+        if (strcmp(p.layerName, layer) == 0)
+        {
+          ++found_layer;
+          break;
+        }
+      }
+    }
+    if (found_layer == local_validation_layer_names.size())
+    {
+      info.ppEnabledLayerNames = local_validation_layer_names.data();
+      info.enabledLayerCount = found_layer;
+      return true;
+    }
+    return false;
+  }
+
   void mainLoop()
   {
     while (!glfwWindowShouldClose(_window))
@@ -103,6 +155,8 @@ private:
   VkInstance _instance;
   GLFWwindow *_window;
   //Resource<VkInstance> _instance{vkDestroyInstance};
+  vector<const char*> _extension_names;
+  vector<VkExtensionProperties> _extensions;
 };
 
 int main()
