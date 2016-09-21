@@ -1,9 +1,5 @@
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
-
 #include <iostream>
 #include <stdexcept>
-#include <functional>
 #include <memory>
 #include <vector>
 
@@ -11,6 +7,7 @@
 #include "Resource.h"
 
 using namespace std;
+
 namespace
 {
   const std::vector<const char*> local_validation_layer_names =
@@ -30,6 +27,19 @@ public:
   }
 
 private:
+  static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugReportFlagsEXT flags,
+    VkDebugReportObjectTypeEXT objType,
+    uint64_t obj,
+    size_t location,
+    int32_t code,
+    const char* layerPrefix,
+    const char* msg,
+    void* userData)
+  {
+    std::cerr << "validation layer: " << msg << std::endl;
+    return VK_FALSE;
+  }
+
   void createInstance()
   {
     // Optional setup
@@ -67,7 +77,7 @@ private:
       vkEnumerateInstanceExtensionProperties(nullptr, &count, extensions);
       {
         std::cout << "available extensions:" << std::endl;
-        for (int i = 0; i< count; ++i)
+        for (uint32_t i = 0; i< count; ++i)
         {
           _extension_names.push_back((extensions + i)->extensionName);
           std::cout << "\t" << (extensions + i)->extensionName << std::endl;
@@ -85,8 +95,12 @@ private:
       cout << "No available extension is detected. The glfw extension is used." << endl;
     }
 
-    //createInfo.enabledExtensionCount = glfwExtensionCount;
-    //createInfo.ppEnabledExtensionNames = glfwExtensions;
+    vector<const char*> glfw_extensions;
+    if(getRequiredExtension(glfw_extensions))
+    {
+      createInfo.enabledExtensionCount = static_cast<uint32_t>(glfw_extensions.size());
+      createInfo.ppEnabledExtensionNames = glfw_extensions.data();
+    }
 
    // createInfo.enabledLayerCount = 0;
 
@@ -107,6 +121,7 @@ private:
   void initVulkan()
   {
     createInstance();
+    setupCallBack();
   }
 
   bool checkValidationLayerSupport(VkInstanceCreateInfo &info)
@@ -143,6 +158,47 @@ private:
     return false;
   }
 
+  bool getRequiredExtension(vector<const char*> &a_extensions)
+  {
+    a_extensions.clear();
+    unsigned int glfw_ext_count = 0;
+    const char **glfw_exts;
+    glfw_exts = glfwGetRequiredInstanceExtensions(&glfw_ext_count);
+
+    for (unsigned int idx = 0; idx < glfw_ext_count; ++idx)
+    {
+      a_extensions.push_back(glfw_exts[idx]);
+    }
+
+    if (g_validation_layers_enabled)
+    {
+      if(std::find(a_extensions.begin(), a_extensions.end(), VK_EXT_DEBUG_REPORT_EXTENSION_NAME) == a_extensions.end())
+      {
+        a_extensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
+      }
+    }
+    return !a_extensions.empty();
+  }
+
+  bool setupCallBack()
+  {
+    if (!g_validation_layers_enabled)
+      return false;
+    else
+    {
+      VkDebugReportCallbackCreateInfoEXT info = {};
+      info.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT;
+      info.flags = VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT;
+      info.pfnCallback = debugCallback;
+
+      if (debug::CreateDebugReportCallbackEXT(_instance, &info, nullptr, &_callback) != VK_SUCCESS)
+      {
+        throw std::runtime_error("failed to setup debug callback.");
+      }
+    }
+    return true;
+  }
+
   void mainLoop()
   {
     while (!glfwWindowShouldClose(_window))
@@ -154,6 +210,7 @@ private:
 private:
   VkInstance _instance;
   GLFWwindow *_window;
+  VkDebugReportCallbackEXT _callback;
   //Resource<VkInstance> _instance{vkDestroyInstance};
   vector<const char*> _extension_names;
   vector<VkExtensionProperties> _extensions;

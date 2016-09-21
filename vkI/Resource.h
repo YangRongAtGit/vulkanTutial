@@ -1,4 +1,24 @@
 #pragma once
+#define GLFW_INCLUDE_VULKAN
+#include <GLFW/glfw3.h>
+#include <functional>
+
+namespace debug
+{
+  VkResult CreateDebugReportCallbackEXT(VkInstance a_pInstance
+    , const VkDebugReportCallbackCreateInfoEXT *a_pInfo
+    , const VkAllocationCallbacks *a_pAllocator
+    , VkDebugReportCallbackEXT *a_pCallback);
+};
+
+struct  hashadcstring
+{
+  char *target_cstring;
+  bool operator()(const char *element)
+  {
+    return target_cstring && element && strcmp(target_cstring, element) == 0;
+  }
+};
 
 template <typename T>
 class Resource {
